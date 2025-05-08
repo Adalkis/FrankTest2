@@ -1,90 +1,149 @@
 <script setup lang="ts">
-import {ref, reactive, watch, onMounted} from "vue"
-import { RecycleScroller } from 'vue-virtual-scroller'
+import { ref, onMounted, computed } from "vue"
+
+import { DynamicScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-const numbers = [];
-let limit = ref(10000);
-let originalRandomNumbers = ref(new Map([]))
-let randomNumbers = ref(new Map())
-let itemList = ref([])
+
+import { useVirtualList } from '@vueuse/core'
+import Grid from "vue-virtual-scroll-grid"
 
 
-onMounted(() => {sortedNumbers()})
+const numbers = ref([]);
+const hoveredNumber = ref(undefined)
+let limit = ref(100);
+let startIndexElementsOnScreen = 0
+let endIndexElementsOnScreen = 50
+let currentElementsOnScreen = null
+let test = ref(100)
 
-function sortedNumbers() {
-	let numbers = [];
-	for(let i = 0; i <= limit.value; i++) { 
-		numbers.push(i)
-	}
 
-	let sortedNumbers = numbers.sort(() => Math.random() - 0.5);
+// <div v-bind="containerProps" style="height: 300px">
+// 		<div v-bind="wrapperProps" class="grid">
+// 		<div v-for="item in list" :key="item.index" style="height: 22px" class="number">
+// 			<div v-for="number in item.data"> {{number}}</div>
+// 		</div>
+		
+// 		</div>
+const { list, containerProps, wrapperProps } = useVirtualList(
+  test,
+  {
+    // Keep `itemHeight` in sync with the item's row.
+	itemHeight: 22
+  },
+)
 
-	const sortedNumbersMap = numbers.reduce((mapAccumulator, randomNumber) => {
-		mapAccumulator.set(randomNumber, {n: randomNumber})
-		return mapAccumulator
-	},new Map())
 
-	originalRandomNumbers.value = new Map(sortedNumbersMap)
-	randomNumbers.value = sortedNumbersMap
-	itemList.value = Array.from(sortedNumbersMap.values());
-
-}
-
-function hov(number) {
-	const squareRoot = parseInt(Math.sqrt(number));
-
-	for(let i = 1 ; i <= squareRoot; i++) {
-		const pairDivisor = number / i
-		const isNotDecimal = number % i == 0
-
-		if(isNotDecimal) {
-		randomNumbers.value.set(i, {n: i, class:'active'})
-		randomNumbers.value.set(pairDivisor, {n: pairDivisor, class:'active'})
-		}
-	}
-}
-
-function reset()
+function sortedNumbers()
 {
-	randomNumbers.value = new Map(originalRandomNumbers.value)
+	let unsortedNumbers = []
+	for(let i = 1; i <= limit.value; i++) { unsortedNumbers.push(i) }
+	numbers.value = unsortedNumbers.sort(() => Math.random() - 0.5);
+}
+
+function isDivisible(item) {
+	if(!hoveredNumber.value) return ''
+	return item % hoveredNumber.value === 0 ? 'active' : ''
+}
+
+
+
+onMounted(() => {
+	sortedNumbers()
+	pageProvider()
+})
+
+
+function styleTest(index) {
+	console.log(index)
+	if(index == 0 || index == 20 || index == 40 || index == 60 || index == 80 || index == 100) return 'height:22px'
+	return ''
+}
+
+async function pageProvider(pageNumber, pageSize) {
+
+	// let numberElementsPerRow = []
+	// const amountOFRows = limit.value / 20
+
+	// for(let i = 0; i < amountOFRows; i++) {
+	// 	startIndexElementsOnScreen = i * 20;
+	// 	endIndexElementsOnScreen = 20 * (i + 1);
+	// 	numberElementsPerRow.push(numbers.value.slice(startIndexElementsOnScreen, endIndexElementsOnScreen))
+	// }
+
+	// test.value= numberElementsPerRow
+
+	
+	// console.log('PAGE PROVIDER', pageNumber, pageSize)
+	// 0  startIndex = pageNumber * 40
+	// 1 startIndex = pageNumber * 40
+
+	startIndexElementsOnScreen = pageNumber * pageSize;
+	endIndexElementsOnScreen = pageSize * (pageNumber + 1);
+
+
+	currentElementsOnScreen = numbers.value.slice(startIndexElementsOnScreen, endIndexElementsOnScreen);
+	return  currentElementsOnScreen
 }
 </script>
 
-
 <template>
-	<div class="wrapper-numbers">
-		<input type="number" v-model="limit" @input="sortedNumbers"/><br /><br />
-		<RecycleScroller
-			class="scroller"
-			:items="itemList"
-			:item-size="32"
-			key-field="n"
-			v-slot="{ item }"
-			direction="vertical"
-			:grid="true"
-		>
-		<div :class="`number ${item.class}`">
-		{{ item.n }}
-		</div>
-		</RecycleScroller>
+	<div>
+		<input type="number" v-model="limit" @blur="sortedNumbers"/><br /><br />
+		
+
+		<Grid
+			:length="1000"
+			:pageProvider="pageProvider"
+			:pageSize="40"
+			:scrollTo="10"
+			class="grid"
+			>
+			<template v-slot:probe>
+				<div class="item">Probe</div>
+			</template>
+			<template v-slot:default="{ item, style, index }">
+  <div :style="style">{{ item }} {{ index }}</div>
+</template>
+			</Grid>
+
 	</div>
 </template>
 
-<style scoped>
-.wrapper-numbers {
-	width: 1200px
+<style>
+.test {
+	width: 30px;
+	height: 30px;
 }
-.scroller {
-  height: 100vh;
+.scroller-wrapper {
+  height: 600px;
+  overflow-y: auto;
+}
+
+.grid {
+   display: grid;
+  grid-template-columns: repeat(20, 1fr);
+}
+
+.grid-item {
+  background: #f0f0f0;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+.wrapper-numbers {
+	max-height: 500px
+	
+}
+.wrapper-list {
+	display: grid;
+	grid-template-columns: repeat(10, 1fr);
 }
 
 .number {
-	display: inline-block;
 	padding: 5px;
 	background-color: lightgrey;
 	margin: 5px;
 }
-
 .active {
 	background-color: red;
 }
